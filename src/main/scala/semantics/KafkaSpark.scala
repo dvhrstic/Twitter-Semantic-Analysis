@@ -1,4 +1,4 @@
-package sparkstreaming
+package semantics
 
 import java.util.HashMap
 import org.apache.kafka.clients.consumer.ConsumerConfig

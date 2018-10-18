@@ -1,12 +1,10 @@
-package generator
+package semantics
 
 import java.util.{Date, Properties, Calendar}
 import scala.util.{Try, Success, Failure}
 import java.lang.Math
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord, ProducerConfig}
 import scala.util.Random
-import kafka.producer.KeyedMessage
-import com.typesafe.scalalogging.Logger
 import org.apache.http.client.fluent.Request
 import scala.util.Try
 import play.api.libs.json._
