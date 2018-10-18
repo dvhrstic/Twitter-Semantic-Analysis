@@ -5,6 +5,7 @@ import org.apache.spark.streaming.twitter.TwitterUtils
 import org.apache.spark.streaming.{Minutes, Seconds, StreamingContext}
 import semantics.SentimentAnalyzer._
 import org.apache.spark.streaming.StreamingContext._
+import org.apache.spark.streaming.dstream.DStream
 /** Simple application to listen to a stream of Tweets and print them out */
 object PrintTweets {
 
@@ -31,21 +32,21 @@ object PrintTweets {
 
 
 
-  def main(args: Array[String]) {
+  def createTweetSemantics(ssc: StreamingContext): DStream[(String, Double)] = {
     // Configure Twitter credentials using twitter.txt
     setupTwitter()
 
     // Set up a Spark streaming context named "PrintTweets" that runs locally using
-    val ssc = new StreamingContext("local[2]", "PrintTweets", Seconds(30))
+    //val ssc = new StreamingContext("local[2]", "PrintTweets", Seconds(30))
 
     // Get rid of log spam (should be called after the context is set up)
     setupLogging()
 
     val filters = Seq("AAPL", "TSLA", "Nasdaq", "Kardashian")
     val twitterStream = TwitterUtils.createStream(ssc, None, filters)
-    val RelevantTweets = twitterStream.filter(tweet => tweet.getLang == "en")
+    val relevantTweets = twitterStream.filter(tweet => tweet.getLang == "en")
                                       .filter(tweet => !tweet.isRetweet)
-    val sentiment = RelevantTweets.map{ tweet =>
+    val sentiment = relevantTweets.map{ tweet =>
       (tweet,SentimentAnalyzer.mainSentiment(tweet.getText))
     }
     //can be improved
@@ -60,26 +61,12 @@ object PrintTweets {
 
     keyTweetSentiment.print()
 
-    val SentimentAvg = keyTweetSentiment.reduceByKey{case ((sentL,countL),(sentR,countR)) => (sentL + sentR, countL + countR)}
+    val sentimentAvg = keyTweetSentiment.reduceByKey{case ((sentL,countL),(sentR,countR)) => (sentL + sentR, countL + countR)}
         .mapValues{
           case (sum , count) => sum.toDouble / count.toDouble
-        }.print()
+        }
+    return sentimentAvg
 
-
-
-
-
-    // val sentimentRatio = specificTopic.foreachRDD{
-    //   (rdd, time) =>
-    //     val total = rdd.count().toDouble
-    //     val negative = rdd.filter(tweet => tweet._2 == "NEGATIVE").count().toDouble
-    //     if( total != 0.0){
-    //       println(negative / total)
-    //     }
-    //     else(println(total))
-    // }
-    // Kick it all off
-    ssc.start()
-    ssc.awaitTermination()
   }
 }
+
