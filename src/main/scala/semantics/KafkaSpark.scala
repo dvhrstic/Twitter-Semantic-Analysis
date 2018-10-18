@@ -1,6 +1,6 @@
 package sparkstreaming
 
-import java.util.HashMap
+import java.util.{Calendar, Date, HashMap, Properties}
 
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
@@ -10,8 +10,6 @@ import org.apache.spark.SparkConf
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.kafka._
 import org.apache.spark.storage.StorageLevel
-import java.util.{Date, Properties}
-
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 
 import scala.util.Random
@@ -42,15 +40,33 @@ object KafkaSpark {
       "zookeeper.connection.timeout.ms" -> "1000")
 
     val messages = KafkaUtils.createDirectStream[String, String,StringDecoder, StringDecoder](ssc, kafkaConf, topic)
-    val pairs = messages.map(element => {
+    val stockStream = messages.map(element => {
       val currElement = element._2.split(",")
       (currElement(0),currElement(1))
-    } )
+    } ).cache()
 
-    val tweetStream = PrintTweets.createTweetSemantics(ssc)
-    tweetStream.print()
+    val tweetStream = PrintTweets.createTweetSemantics(ssc).cache()
+    //tweetStream.print()
 
-    pairs.print()
+    val stockByTime = stockStream.transform(
+      (rdd, time) => {
+        rdd.map(
+          (time, _)
+        )
+      }
+    )
+
+    val tweetByTime = tweetStream.transform(
+      (rdd, time) => {
+        rdd.map(
+          (time, _)
+        )
+      }
+    )
+
+    stockByTime.print()
+    tweetByTime.print()
+
     // store the result in Cassandra
     //stateDstream.saveToCassandra("avg_space", "avg", SomeColumns("word", "count"))
     // Now we run the data flow
