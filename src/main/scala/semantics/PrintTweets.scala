@@ -1,5 +1,7 @@
 package semantics
 
+import java.util.Date
+
 import edu.stanford.nlp.pipeline.StanfordCoreNLP
 import org.apache.spark.streaming.twitter.TwitterUtils
 import org.apache.spark.streaming.{Minutes, Seconds, StreamingContext}
@@ -31,7 +33,7 @@ object PrintTweets {
 
 
 
-  def createTweetSemantics(ssc: StreamingContext): DStream[(String, Double)] = {
+  def createTweetSemantics(ssc: StreamingContext): DStream[(Date, (String, Double))] = {
     // Configure Twitter credentials using twitter.txt
     setupTwitter()
 
@@ -41,30 +43,55 @@ object PrintTweets {
     // Get rid of log spam (should be called after the context is set up)
     setupLogging()
 
-    val filters = Seq("AAPL", "TSLA", "Nasdaq", "Kardashian")
+    val filters = Seq("TSLA")
     val twitterStream = TwitterUtils.createStream(ssc, None, filters)
     val relevantTweets = twitterStream.filter(tweet => tweet.getLang == "en")
-                                      .filter(tweet => !tweet.isRetweet)
     val sentiment = relevantTweets.map{ tweet =>
-      (tweet,SentimentAnalyzer.mainSentiment(tweet.getText))
+      (tweet,SentimentAnalyzer.mainSentiment(tweet.getText),tweet.getCreatedAt)
     }
-    //can be improved
+    //set for onlu TSLA
     val keyTweetSentiment = sentiment.map { tweet =>
-      val string = tweet._1.getText.toLowerCase
-      var key = "None"
-      filters.foreach(e => if (string.contains(e.toLowerCase)) {
-        key = e
-      })
-      (key, (tweet._2, 1))
-    }.cache()
+      // val string = tweet._1.getText.toLowerCase
+      // var key = "None"
+      // filters.foreach(e => if (string.contains(e.toLowerCase)) {
+      //   key = e
+      // })
+      ("TSLA", (tweet._2, 1, tweet._3))
+    }
 
-    keyTweetSentiment.print()
 
-    val sentimentAvg = keyTweetSentiment.reduceByKey{case ((sentL,countL),(sentR,countR)) => (sentL + sentR, countL + countR)}
-        .mapValues{
-          case (sum , count) => sum.toDouble / count.toDouble
-        }
+    //time is the last tweet
+    val sentimentAvg = keyTweetSentiment.reduceByKey{case ((sentL,countL, _),(sentR,countR, timeR)) =>
+      (sentL + sentR, countL + countR, timeR)
+    }
+      .map{
+        case (stock, (sum , count, time)) => (time, (stock, sum.toDouble / count.toDouble))
+      }
     return sentimentAvg
+    // val filters = Seq("AAPL", "TSLA", "Nasdaq", "Kardashian")
+    // val twitterStream = TwitterUtils.createStream(ssc, None, filters)
+    // val relevantTweets = twitterStream.filter(tweet => tweet.getLang == "en")
+    //                                   .filter(tweet => !tweet.isRetweet)
+    // val sentiment = relevantTweets.map{ tweet =>
+    //   (tweet,SentimentAnalyzer.mainSentiment(tweet.getText))
+    // }
+    // //can be improved
+    // val keyTweetSentiment = sentiment.map { tweet =>
+    //   val string = tweet._1.getText.toLowerCase
+    //   var key = "None"
+    //   filters.foreach(e => if (string.contains(e.toLowerCase)) {
+    //     key = e
+    //   })
+    //   (key, (tweet._2, 1))
+    // }.cache()
+
+    // keyTweetSentiment.print()
+
+    // val sentimentAvg = keyTweetSentiment.reduceByKey{case ((sentL,countL),(sentR,countR)) => (sentL + sentR, countL + countR)}
+    //     .mapValues{
+    //       case (sum , count) => sum.toDouble / count.toDouble
+    //    }
+    // return sentimentAvg
 
   }
 }

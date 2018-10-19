@@ -1,15 +1,26 @@
 package sparkstreaming
 
+import java.time.format.DateTimeFormatter
+object MyUtils {
+  val format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+}
+import MyUtils._
+import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
+import java.time.temporal.ChronoUnit
 import java.util.{Calendar, Date, HashMap, Properties}
 
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.spark.streaming.kafka._
+import java.util.Calendar
+
 import kafka.serializer.{DefaultDecoder, StringDecoder}
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.kafka._
+
 import java.util.Date
+
 import org.apache.spark.storage.StorageLevel
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 
@@ -18,6 +29,7 @@ import org.apache.spark.sql.cassandra._
 import com.datastax.spark.connector._
 import com.datastax.driver.core.{Cluster, Host, Metadata, Session}
 import com.datastax.spark.connector.streaming._
+import org.apache.commons.lang.time.DateUtils
 import semantics.PrintTweets
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
@@ -35,7 +47,7 @@ object KafkaSpark {
     // session.execute("CREATE TABLE IF NOT EXISTS avg_space.avg (word text PRIMARY KEY, count float);")
 
     val sparkConf = new SparkConf().setMaster("local[2]").setAppName("WordAvg")
-    val ssc = new StreamingContext(sparkConf, Seconds(100))
+    val ssc = new StreamingContext(sparkConf, Seconds(10))
     ssc.checkpoint("file:///tmp/spark/checkpoint")
     val topic = "avg".split(",").toSet
     val kafkaConf = Map(
@@ -51,22 +63,30 @@ object KafkaSpark {
     } ).cache()
 
     val tweetStream = PrintTweets.createTweetSemantics(ssc).cache()
-    //tweetStream.print()
+    //timezones
+    val nyZone = ZoneId.of("America/New_York")
+    val sthlmZone = ZoneId.of("Europe/Stockholm")
 
-    val format = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
-    val stockByTime = stockStream.map{ case (value, time) => (value, format.parse(time))}
+    val stockByTime = stockStream.map{ case (value, time) =>
+      val dateTime = LocalDateTime.parse(time,format)
+      val nyTime = ZonedDateTime.of(dateTime,nyZone)
+      (nyTime.withZoneSameInstant(sthlmZone),value)}
 
-    val tweetByTime = tweetStream.transform(
-      (rdd, time) => {
-        rdd.map(
-          (time, _)
-        )
+    //date format
+    // times are batched to ceil(time % 5)
+    val tweetByTime = tweetStream.map{
+        case (time, (stock , avg)) =>
+          val sthlmTime = time.toInstant().atZone(sthlmZone)
+          val sthlmTrunc = sthlmTime.truncatedTo(ChronoUnit.HOURS)
+                                    .plusMinutes((sthlmTime.getMinute - (sthlmTime.getMinute % 5)) % 60)
+          (sthlmTrunc,(stock,avg))
       }
-    )
 
     stockByTime.print()
     tweetByTime.print()
 
+    val joinedStream = stockByTime.join(tweetByTime)
+    joinedStream.print
     // store the result in Cassandra
     //stateDstream.saveToCassandra("avg_space", "avg", SomeColumns("word", "count"))
     // Now we run the data flow
