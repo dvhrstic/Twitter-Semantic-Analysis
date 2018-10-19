@@ -22,7 +22,6 @@ object PrintTweets {
     val lines = scala.io.Source.fromInputStream( stream ).getLines
     lines.foreach
     { line =>
-      println(line)
       val fields = line.split(" ")
       if (fields.length == 2) {
         System.setProperty("twitter4j.oauth." + fields(0), fields(1))
