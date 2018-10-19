@@ -47,7 +47,7 @@ object KafkaSpark {
     // session.execute("CREATE TABLE IF NOT EXISTS avg_space.avg (word text PRIMARY KEY, count float);")
 
     val sparkConf = new SparkConf().setMaster("local[2]").setAppName("WordAvg")
-    val ssc = new StreamingContext(sparkConf, Seconds(10))
+    val ssc = new StreamingContext(sparkConf, Seconds(30))
     ssc.checkpoint("file:///tmp/spark/checkpoint")
     val topic = "avg".split(",").toSet
     val kafkaConf = Map(
@@ -70,7 +70,7 @@ object KafkaSpark {
     val stockByTime = stockStream.map{ case (value, time) =>
       val dateTime = LocalDateTime.parse(time,format)
       val nyTime = ZonedDateTime.of(dateTime,nyZone)
-      (nyTime.withZoneSameInstant(sthlmZone),value)}
+      (nyTime.withZoneSameInstant(sthlmZone),value.replaceAll("\"","").toDouble)}
 
     //date format
     // times are batched to ceil(time % 5)
@@ -82,11 +82,14 @@ object KafkaSpark {
           (sthlmTrunc,(stock,avg))
       }
 
-    stockByTime.print()
-    tweetByTime.print()
+    //stockByTime.print()
+    //tweetByTime.print()
 
     val joinedStream = stockByTime.join(tweetByTime)
-    joinedStream.print
+    val parsedTimeStream = joinedStream.map{
+      case (time,(value,(stock,semanticAvg))) => (stock,(time.toLocalDateTime.toString,value,semanticAvg))
+    }
+    parsedTimeStream.print()
     // store the result in Cassandra
     //stateDstream.saveToCassandra("avg_space", "avg", SomeColumns("word", "count"))
     // Now we run the data flow

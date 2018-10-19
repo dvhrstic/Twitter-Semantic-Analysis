@@ -55,8 +55,8 @@ object ScalaProducerExample extends App {
         timeseries match {
             case Success(e) =>
                 val stockKey = timeseries.get.as[JsObject].keys.toSeq(0)
-                val stockValue = (timeseries.get.as[JsObject]\ stockKey \ "4. close").get.toString()
-                val kafkaEntry = stockValue + "," + stockKey.toString
+                val stockValue = (timeseries.get.as[JsObject]\ stockKey \ "4. close").get
+                val kafkaEntry = stockValue + "," + stockKey
                 val data = new ProducerRecord[String, String](topic, null, kafkaEntry)
                 producer.send(data)
                 print("\t" + stockKey + "\n")
