@@ -9,6 +9,7 @@ import kafka.serializer.{DefaultDecoder, StringDecoder}
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming._
 import org.apache.spark.streaming.kafka._
+import java.util.Date
 import org.apache.spark.storage.StorageLevel
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerConfig, ProducerRecord}
 
@@ -18,19 +19,23 @@ import com.datastax.spark.connector._
 import com.datastax.driver.core.{Cluster, Host, Metadata, Session}
 import com.datastax.spark.connector.streaming._
 import semantics.PrintTweets
+import org.apache.log4j.Logger
+import org.apache.log4j.Level
+
 
 object KafkaSpark {
   def main(args: Array[String]) {
+
+    Logger.getLogger("org").setLevel(Level.OFF)
+    Logger.getLogger("akka").setLevel(Level.OFF)
     // connect to Cassandra and make a keyspace and table as explained in the document
     // val cluster = Cluster.builder().addContactPoint("127.0.0.1").build()
     // val session = cluster.connect()
     // session.execute("CREATE KEYSPACE IF NOT EXISTS avg_space WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1 };")
     // session.execute("CREATE TABLE IF NOT EXISTS avg_space.avg (word text PRIMARY KEY, count float);")
 
-    // make a connection to Kafka and read (key, value) pairs from it
-    // local[2] - one thread for receiving and one for the application
     val sparkConf = new SparkConf().setMaster("local[2]").setAppName("WordAvg")
-    val ssc = new StreamingContext(sparkConf, Seconds(20))
+    val ssc = new StreamingContext(sparkConf, Seconds(100))
     ssc.checkpoint("file:///tmp/spark/checkpoint")
     val topic = "avg".split(",").toSet
     val kafkaConf = Map(
@@ -48,13 +53,8 @@ object KafkaSpark {
     val tweetStream = PrintTweets.createTweetSemantics(ssc).cache()
     //tweetStream.print()
 
-    val stockByTime = stockStream.transform(
-      (rdd, time) => {
-        rdd.map(
-          (time, _)
-        )
-      }
-    )
+    val format = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+    val stockByTime = stockStream.map{ case (value, time) => (value, format.parse(time))}
 
     val tweetByTime = tweetStream.transform(
       (rdd, time) => {
@@ -74,3 +74,4 @@ object KafkaSpark {
     ssc.awaitTermination()
   }
 }
+
