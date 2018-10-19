@@ -38,16 +38,18 @@ import org.apache.log4j.Level
 object KafkaSpark {
   def main(args: Array[String]) {
 
+    val interval = 1
+
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)
     // connect to Cassandra and make a keyspace and table as explained in the document
-    // val cluster = Cluster.builder().addContactPoint("127.0.0.1").build()
-    // val session = cluster.connect()
-    // session.execute("CREATE KEYSPACE IF NOT EXISTS avg_space WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1 };")
-    // session.execute("CREATE TABLE IF NOT EXISTS avg_space.avg (word text PRIMARY KEY, count float);")
+    val cluster = Cluster.builder().addContactPoint("127.0.0.1").build()
+    val session = cluster.connect()
+    session.execute("CREATE KEYSPACE IF NOT EXISTS tweetstock_space WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1 };")
+    session.execute("CREATE TABLE IF NOT EXISTS tweetstock_space.avg (company text PRIMARY KEY, tuplevalue tuple<text, double, double>);")
 
     val sparkConf = new SparkConf().setMaster("local[2]").setAppName("WordAvg")
-    val ssc = new StreamingContext(sparkConf, Seconds(30))
+    val ssc = new StreamingContext(sparkConf, Minutes(interval))
     ssc.checkpoint("file:///tmp/spark/checkpoint")
     val topic = "avg".split(",").toSet
     val kafkaConf = Map(
@@ -74,24 +76,25 @@ object KafkaSpark {
 
     //date format
     // times are batched to ceil(time % 5)
+
     val tweetByTime = tweetStream.map{
         case (time, (stock , avg)) =>
           val sthlmTime = time.toInstant().atZone(sthlmZone)
           val sthlmTrunc = sthlmTime.truncatedTo(ChronoUnit.HOURS)
-                                    .plusMinutes((sthlmTime.getMinute - (sthlmTime.getMinute % 5)) % 60)
+                                    .plusMinutes((sthlmTime.getMinute - (sthlmTime.getMinute % interval)) % 60)
           (sthlmTrunc,(stock,avg))
       }
 
     //stockByTime.print()
-    //tweetByTime.print()
+    tweetByTime.print()
 
     val joinedStream = stockByTime.join(tweetByTime)
     val parsedTimeStream = joinedStream.map{
-      case (time,(value,(stock,semanticAvg))) => (stock,(time.toLocalDateTime.toString,value,semanticAvg))
-    }
+      case (time,(value,(stock,semanticAvg))) => (time.toLocalDateTime.toString,(stock,value,semanticAvg))
+    }.cache()
     parsedTimeStream.print()
     // store the result in Cassandra
-    //stateDstream.saveToCassandra("avg_space", "avg", SomeColumns("word", "count"))
+    parsedTimeStream.saveToCassandra("tweetstock_space", "avg", SomeColumns("company", "tuplevalue"))
     // Now we run the data flow
     ssc.start()
     ssc.awaitTermination()

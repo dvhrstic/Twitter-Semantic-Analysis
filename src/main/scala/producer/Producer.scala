@@ -17,6 +17,7 @@ object ScalaProducerExample extends App {
     val events = 10000
     val topic = "avg"
     val brokers = "localhost:9092"
+    val intervalTime = "1min"
     val rnd = new Random()
 
     val props = new Properties()
@@ -41,16 +42,17 @@ object ScalaProducerExample extends App {
                     val symbol = "MSFT"
                     val function = "TIME_SERIES_INTRADAY"
 
+
                     val jsonString = Try(
                         Request
-                          .Get(s"$baseUri?function=$function&symbol=$symbol&interval=5min&outputsize=$outputSize&apikey=$key")
+                          .Get(s"$baseUri?function=$function&symbol=$symbol&interval=$intervalTime&outputsize=$outputSize&apikey=$key")
                           .execute()
                           .returnContent()
         .toString()
         ).getOrElse("0")
 
         val json = Json.parse(jsonString).as[JsObject]
-        val timeseries = Try(json("Time Series (5min)"))
+        val timeseries = Try(json("Time Series ("+ intervalTime + ")"))
 
         timeseries match {
             case Success(e) =>
