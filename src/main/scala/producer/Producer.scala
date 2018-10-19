@@ -17,7 +17,7 @@ object ScalaProducerExample extends App {
     val events = 10000
     val topic = "avg"
     val brokers = "localhost:9092"
-    val intervalTime = "1min"
+    val intervalTime = "5min"
     val rnd = new Random()
 
     val props = new Properties()

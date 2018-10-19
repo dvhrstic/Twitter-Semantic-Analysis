@@ -38,7 +38,7 @@ import org.apache.log4j.Level
 object KafkaSpark {
   def main(args: Array[String]) {
 
-    val interval = 1
+    val interval = 5
 
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)
