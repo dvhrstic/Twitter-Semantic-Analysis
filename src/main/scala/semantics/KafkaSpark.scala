@@ -33,12 +33,14 @@ import org.apache.commons.lang.time.DateUtils
 import semantics.PrintTweets
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
+import java.util.Scanner
 
 
 object KafkaSpark {
   def main(args: Array[String]) {
-
-    val interval = 5
+    println("Set Micro-Batch Inverval time (1, 5, 30) -min")
+    val scanner = new Scanner(System.in)
+    val interval = scanner.nextInt()
 
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)
@@ -46,7 +48,7 @@ object KafkaSpark {
     val cluster = Cluster.builder().addContactPoint("127.0.0.1").build()
     val session = cluster.connect()
     session.execute("CREATE KEYSPACE IF NOT EXISTS tweetstock_space WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1 };")
-    session.execute("CREATE TABLE IF NOT EXISTS tweetstock_space.avg (company text PRIMARY KEY, tuplevalue tuple<text, double, double>);")
+    session.execute("CREATE TABLE IF NOT EXISTS tweetstock_space.avg (timegen timestamp PRIMARY KEY,tuplevalue tuple<text, double, double>);")
 
     val sparkConf = new SparkConf().setMaster("local[2]").setAppName("WordAvg")
     val ssc = new StreamingContext(sparkConf, Minutes(interval))
@@ -94,7 +96,7 @@ object KafkaSpark {
     }.cache()
     parsedTimeStream.print()
     // store the result in Cassandra
-    parsedTimeStream.saveToCassandra("tweetstock_space", "avg", SomeColumns("company", "tuplevalue"))
+    parsedTimeStream.saveToCassandra("tweetstock_space", "avg", SomeColumns("timegen", "tuplevalue"))
     // Now we run the data flow
     ssc.start()
     ssc.awaitTermination()

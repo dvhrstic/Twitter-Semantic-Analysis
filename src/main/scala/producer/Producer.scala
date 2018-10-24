@@ -9,16 +9,17 @@ import kafka.producer.KeyedMessage
 import org.apache.http.client.fluent.Request
 import scala.util.Try
 import play.api.libs.json._
-
+import java.util.Scanner
 
 object ScalaProducerExample extends App {
+    println("Set Micro-Batch Inverval time (1, 5, 30) -min: ")
+    val scanner = new Scanner(System.in)
+    val intervalTime = scanner.nextInt()  + "min"
 
-    val alphabet = 'a' to 'z'
-    val events = 10000
     val topic = "avg"
     val brokers = "localhost:9092"
-    val intervalTime = "5min"
     val rnd = new Random()
+    var previousTimestamp = ""
 
     val props = new Properties()
     props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, brokers)
@@ -59,9 +60,12 @@ object ScalaProducerExample extends App {
                 val stockKey = timeseries.get.as[JsObject].keys.toSeq(0)
                 val stockValue = (timeseries.get.as[JsObject]\ stockKey \ "4. close").get
                 val kafkaEntry = stockValue + "," + stockKey
-                val data = new ProducerRecord[String, String](topic, null, kafkaEntry)
-                producer.send(data)
-                print("\t" + stockKey + "\n")
+                if(!kafkaEntry.equals(previousTimestamp)) {
+                  val data = new ProducerRecord[String, String](topic, null, kafkaEntry)
+                  producer.send(data)
+                  previousTimestamp = kafkaEntry
+                  print("\t" + stockKey + "\n")
+                }
                 runAgain = false
                 success = true
             case Failure(v) =>
