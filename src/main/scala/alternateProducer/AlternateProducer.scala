@@ -1,0 +1,5 @@
+package alternateProducer
+
+object AlternateProducer {
+
+}
