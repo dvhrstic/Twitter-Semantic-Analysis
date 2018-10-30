@@ -7,7 +7,6 @@ object MyUtils {
 import MyUtils._
 import java.time.{LocalDate, LocalDateTime, ZoneId, ZonedDateTime}
 import java.time.temporal.ChronoUnit
-import java.util.{Calendar, Date, HashMap, Properties}
 
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
@@ -30,17 +29,19 @@ import com.datastax.spark.connector._
 import com.datastax.driver.core.{Cluster, Host, Metadata, Session}
 import com.datastax.spark.connector.streaming._
 import org.apache.commons.lang.time.DateUtils
-import semantics.PrintTweets
+import semantics.TweetTransformer
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 import java.util.Scanner
 
 
-object KafkaSpark {
+object Consumer {
   def main(args: Array[String]) {
-    println("Set Micro-Batch Inverval time (1, 5, 30) -min")
+    println("Set Micro-Batch Interval time (integer) (1, 5, 15, 30, 60) -min: ")
     val scanner = new Scanner(System.in)
     val interval = scanner.nextInt()
+    println("Choose Nasdaq stock i.e. TSLA, MSFT")
+    val stockName = scanner.next()
 
     Logger.getLogger("org").setLevel(Level.OFF)
     Logger.getLogger("akka").setLevel(Level.OFF)
@@ -48,9 +49,9 @@ object KafkaSpark {
     val cluster = Cluster.builder().addContactPoint("127.0.0.1").build()
     val session = cluster.connect()
     session.execute("CREATE KEYSPACE IF NOT EXISTS tweetstock_space WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1 };")
-    session.execute("CREATE TABLE IF NOT EXISTS tweetstock_space.avg (timegen timestamp PRIMARY KEY,tuplevalue tuple<text, double, double>);")
+    session.execute("CREATE TABLE IF NOT EXISTS tweetstock_space.batch_avg (timegen timestamp PRIMARY KEY,tuplevalue tuple<text, double, double>);")
 
-    val sparkConf = new SparkConf().setMaster("local[2]").setAppName("WordAvg")
+    val sparkConf = new SparkConf().setMaster("local[2]").setAppName("TweetAvg")
     val ssc = new StreamingContext(sparkConf, Minutes(interval))
     ssc.checkpoint("file:///tmp/spark/checkpoint")
     val topic = "avg".split(",").toSet
@@ -66,7 +67,7 @@ object KafkaSpark {
       (currElement(0),currElement(1))
     } ).cache()
 
-    val tweetStream = PrintTweets.createTweetSemantics(ssc).cache()
+    val tweetStream = TweetTransformer.createTweetSemantics(ssc, stockName).cache()
     //timezones
     val nyZone = ZoneId.of("America/New_York")
     val sthlmZone = ZoneId.of("Europe/Stockholm")
@@ -96,8 +97,8 @@ object KafkaSpark {
     }.cache()
     parsedTimeStream.print()
     // store the result in Cassandra
-    parsedTimeStream.saveToCassandra("tweetstock_space", "avg", SomeColumns("timegen", "tuplevalue"))
-    // Now we run the data flow
+    parsedTimeStream.saveToCassandra("tweetstock_space", "batch_avg", SomeColumns("timegen", "tuplevalue"))
+    // run
     ssc.start()
     ssc.awaitTermination()
   }

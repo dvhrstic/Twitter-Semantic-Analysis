@@ -9,7 +9,7 @@ import semantics.SentimentAnalyzer._
 import org.apache.spark.streaming.StreamingContext._
 import org.apache.spark.streaming.dstream.DStream
 /** Simple application to listen to a stream of Tweets and print them out */
-object PrintTweets {
+object TweetTransformer {
 
   /** Makes sure only ERROR messages get logged to avoid log spam. */
   def setupLogging() = {
@@ -33,7 +33,7 @@ object PrintTweets {
 
 
 
-  def createTweetSemantics(ssc: StreamingContext): DStream[(Date, (String, Double))] = {
+  def createTweetSemantics(ssc: StreamingContext, stockName: String): DStream[(Date, (String, Double))] = {
     // Configure Twitter credentials using twitter.txt
     setupTwitter()
 
@@ -43,22 +43,22 @@ object PrintTweets {
     // Get rid of log spam (should be called after the context is set up)
     setupLogging()
 
-    val filters = Seq("TSLA")
+    val filters = Seq(stockName)
     val twitterStream = TwitterUtils.createStream(ssc, None, filters)
     val relevantTweets = twitterStream.filter(tweet => tweet.getLang == "en")
     val sentiment = relevantTweets.map{ tweet =>
       (tweet,SentimentAnalyzer.mainSentiment(tweet.getText),tweet.getCreatedAt)
     }
-    //set for onlu TSLA
+    //simplified for one stock only
+    //no need to double filter for one stock
     val keyTweetSentiment = sentiment.map { tweet =>
       // val string = tweet._1.getText.toLowerCase
       // var key = "None"
       // filters.foreach(e => if (string.contains(e.toLowerCase)) {
       //   key = e
       // })
-      ("TSLA", (tweet._2, 1, tweet._3))
+      (stockName, (tweet._2, 1, tweet._3))
     }
-
 
     //time is the last tweet
     val sentimentAvg = keyTweetSentiment.reduceByKey{case ((sentL,countL, _),(sentR,countR, timeR)) =>
