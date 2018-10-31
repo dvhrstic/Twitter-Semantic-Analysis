@@ -32,12 +32,10 @@ object AlternateProducer extends App {
   props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringSerializer")
   val producer = new KafkaProducer[String, String](props)
   var runAgain = true
-  var firstRun = true
   while(true){
     var now = Calendar.getInstance()
     var currentSecond = now.get(Calendar.SECOND)
-    while(currentSecond % 30 == 0 || firstRun){
-      firstRun = false
+    while(runAgain){
       val baseUri = "https://api.iextrading.com/1.0/stock/"
       val function = "/chart/1d"
 
@@ -52,26 +50,33 @@ object AlternateProducer extends App {
 
       val json = Json.parse(jsonString).asInstanceOf[JsArray]
       //println("json: " + json)
-      val stockElement = json.value.last
-      //println("key: " + stockElement)
-
-      //create same syntax as alpha vantage
-      val stockValue = (stockElement \ "close").get.asInstanceOf[JsNumber].value.toInt
-      val stockMin = (stockElement \ "minute").get.toString()
-      val actualMin = stockMin.substring(4, stockMin.length - 1).toInt
-      if (actualMin % interval == 0) {
-        var stockDate = (stockElement \ "date").get.toString()
-        stockDate =  stockDate.substring(1,5) + ":" + stockDate.substring(5,7) + ":" + stockDate.substring(7,9)
-        val stockKey = stockDate + " " + stockMin.substring(1, stockMin.length - 1) + ":00"
-        val kafkaEntry = stockValue + "," + stockKey
-        if (previousTimestamp != kafkaEntry) {
-          val data = new ProducerRecord[String, String](topic, null, kafkaEntry)
-          previousTimestamp = kafkaEntry
-          print("\t" + stockKey + "\n")
-          producer.send(data)
-          Thread.sleep(55000 * interval)
+        val stockElement = json.value.last
+        //println("key: " + stockElement)
+        //create same syntax as alpha vantage
+        val stockValue = (stockElement \ "close").get.asInstanceOf[JsNumber].value.toInt
+        val stockMin = (stockElement \ "minute").get.toString()
+        val actualMin = stockMin.substring(4, stockMin.length - 1).toInt
+        val wait = actualMin % interval
+        if (wait == 0) {
+          var stockDate = (stockElement \ "date").get.toString()
+          stockDate =  stockDate.substring(1,5) + ":" + stockDate.substring(5,7) + ":" + stockDate.substring(7,9)
+          val stockKey = stockDate + " " + stockMin.substring(1, stockMin.length - 1) + ":00"
+          val kafkaEntry = stockValue + "," + stockKey
+          if (previousTimestamp != kafkaEntry) {
+            val data = new ProducerRecord[String, String](topic, null, kafkaEntry)
+            previousTimestamp = kafkaEntry
+            print("\t" + stockKey + "\n")
+            producer.send(data)
+            now = Calendar.getInstance()
+            currentSecond = now.get(Calendar.SECOND)
+            Thread.sleep((60000 * interval) - currentSecond)
+          }
         }
-      }
+        else{
+          now = Calendar.getInstance()
+          currentSecond = now.get(Calendar.SECOND)
+          Thread.sleep((60000 * wait) - currentSecond)
+        }
     }
   }
 
