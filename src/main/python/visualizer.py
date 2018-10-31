@@ -17,7 +17,7 @@ fig, ax1 = plt.subplots()
 
 def animate(i):
     print(" Check for updated data")
-    rows = session.execute('SELECT * FROM tweetstock_space.avg')
+    rows = session.execute('SELECT * FROM tweetstock_space.batch_avg')
     rows = list(rows)
     print(len(rows))
     x_axis = np.zeros(len(rows), dtype=object)
@@ -34,8 +34,8 @@ def animate(i):
     print(twitter_y_axis)
 
     ax1.clear()
-    
-    ax1.set_xlabel('Time (s)')
+
+    ax1.set_xlabel('Time (DD HH:MM)')
     ax1.set_ylabel('Stock Price (USD)', color='b')
     ax1.plot(x_axis, stock_y_axis, 'b-')
     ax1.tick_params('y', colors='b')

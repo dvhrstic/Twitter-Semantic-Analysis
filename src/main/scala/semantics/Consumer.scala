@@ -54,7 +54,7 @@ object Consumer {
     val sparkConf = new SparkConf().setMaster("local[2]").setAppName("TweetAvg")
     val ssc = new StreamingContext(sparkConf, Minutes(interval))
     ssc.checkpoint("file:///tmp/spark/checkpoint")
-    val topic = "avg".split(",").toSet
+    val topic = "avgSemantics".split(",").toSet
     val kafkaConf = Map(
       "metadata.broker.list" -> "localhost:9092",
       "zookeeper.connect" -> "localhost:2181",

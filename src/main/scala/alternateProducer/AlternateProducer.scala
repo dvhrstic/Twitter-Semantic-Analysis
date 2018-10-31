@@ -20,7 +20,7 @@ object AlternateProducer extends App {
   println("Choose Nasdaq stock i.e. TSLA, MSFT")
   val stockName = scanner.next.toLowerCase
 
-  val topic = "avg"
+  val topic = "avgSemantics"
   val brokers = "localhost:9092"
   val rnd = new Random()
   var previousTimestamp = ""
