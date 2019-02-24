@@ -4,3 +4,5 @@ A semantic tool for comparing people's general semantic on twitter towards a sto
 The semantic is displayed together with the stock prize(Real-time).
 
 _Spark Streaming_ _Cassandra_ _Python(Matplotlib)_
+
+![Example TSLA stock vs Public Semantic on Twitter](tesla-4-points.png)
